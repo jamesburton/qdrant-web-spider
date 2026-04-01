@@ -77,7 +77,7 @@ public class QdrantHelper : IDisposable
         return results;
     }
 
-    public async Task<IReadOnlyList<ScoredPoint>> GetByUrlAsync(string url)
+    public async Task<List<RetrievedPoint>> GetByUrlAsync(string url)
     {
         var filter = new Filter();
         filter.Must.Add(new Condition
@@ -94,16 +94,24 @@ public class QdrantHelper : IDisposable
             filter: filter,
             limit: 1000,
             payloadSelector: true);
-        var points = scrollResult.Result;
+        return scrollResult.Result.ToList();
+    }
 
-        // Convert ScrollResult points to ScoredPoints for consistent return type
-        return points.Select(p =>
-        {
-            var scored = new ScoredPoint { Id = p.Id, Score = 1.0f };
-            foreach (var kv in p.Payload)
-                scored.Payload[kv.Key] = kv.Value;
-            return scored;
-        }).ToList();
+    public async Task<List<SearchResult>> GetPageAsync(string url)
+    {
+        var points = await GetByUrlAsync(url);
+        if (points.Count == 0) return [];
+
+        return points
+            .OrderBy(r => r.Payload.GetInt("chunkIndex"))
+            .Select(r => new SearchResult(
+                Score: 1.0f,
+                Url: r.Payload.GetString("url"),
+                Title: r.Payload.GetString("title"),
+                Heading: r.Payload.GetString("heading"),
+                Text: r.Payload.GetString("chunkText"),
+                CaptureDate: r.Payload.GetString("captureDate")
+            )).ToList();
     }
 
     public async Task<IReadOnlyList<ScoredPoint>> ScrollAllAsync(Filter? filter = null)
@@ -149,8 +157,11 @@ public class QdrantHelper : IDisposable
 public static class PayloadExtensions
 {
     public static string GetString(this MapField<string, Value> payload, string key, string defaultValue = "")
-        => payload.TryGetValue(key, out var v) ? v.StringValue : defaultValue;
+        => payload.TryGetValue(key, out var v) && v.KindCase == Value.KindOneofCase.StringValue ? v.StringValue : defaultValue;
 
     public static long GetInt(this MapField<string, Value> payload, string key, long defaultValue = 0)
-        => payload.TryGetValue(key, out var v) ? v.IntegerValue : defaultValue;
+        => payload.TryGetValue(key, out var v) && v.KindCase == Value.KindOneofCase.IntegerValue ? v.IntegerValue : defaultValue;
+
+    public static DateTime? GetDateTime(this MapField<string, Value> payload, string key)
+        => payload.TryGetValue(key, out var v) && DateTime.TryParse(v.StringValue, out var dt) ? dt : null;
 }

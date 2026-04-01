@@ -74,6 +74,33 @@ public class PageExtractorTests
     }
 
     [Fact]
+    public void Extract_ShouldConvertTableToMarkdown()
+    {
+        // Arrange
+        var html = @"
+            <html>
+                <body>
+                    <main>
+                        <table>
+                            <tr><th>Header 1</th><th>Header 2</th></tr>
+                            <tr><td>Cell 1</td><td>Cell 2</td></tr>
+                        </table>
+                    </main>
+                </body>
+            </html>";
+        var url = "https://example.com";
+        var selectors = new SelectorConfig { Content = "main" };
+
+        // Act
+        var result = PageExtractor.Extract(html, url, selectors, ExtractionMode.Markdown);
+
+        // Assert
+        Assert.Contains("| Header 1 | Header 2 |", result.BodyText);
+        Assert.Contains("| --- | --- |", result.BodyText);
+        Assert.Contains("| Cell 1 | Cell 2 |", result.BodyText);
+    }
+
+    [Fact]
     public void Extract_ShouldExtractHtml()
     {
         // Arrange

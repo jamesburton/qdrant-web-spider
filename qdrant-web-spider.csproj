@@ -20,9 +20,23 @@
   <ItemGroup>
     <ProjectReference Include="shared/Shared.csproj" />
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageReference Include="System.CommandLine.NamingConventionBinder" Version="2.0.0-beta4.22272.1" />
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.*" />
     <PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="spider.cs" />
+    <Compile Remove="search.cs" />
+    <Compile Remove="mcp-server.cs" />
+    <Compile Remove="tests\**" />
+    <Compile Remove="shared\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="tests\**" />
+    <None Include="shared\**" />
   </ItemGroup>
 
 </Project>

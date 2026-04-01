@@ -1,3 +1,4 @@
+using System.Text;
 using HtmlAgilityPack;
 
 namespace QdrantWebSpider;
@@ -129,7 +130,7 @@ public static class PageExtractor
         var tag = node.Name.ToLowerInvariant();
         var inner = string.Join("", node.ChildNodes.Select(HtmlToMarkdown)).Trim();
 
-        if (string.IsNullOrWhiteSpace(inner) && tag != "hr" && tag != "br")
+        if (string.IsNullOrWhiteSpace(inner) && tag != "hr" && tag != "br" && tag != "table")
             return "";
 
         return tag switch
@@ -141,7 +142,7 @@ public static class PageExtractor
             "ul" or "ol" => $"\n{inner}\n",
             "a" => $"[{inner}]({node.GetAttributeValue("href", "")})",
             "code" => $"`{inner}`",
-            "pre" => $"\n```\n{inner}\n```\n",
+            "pre" => $"\n```\n{node.InnerText}\n```\n",
             "br" => "\n",
             "hr" => "\n---\n",
             "h1" => $"\n# {inner}\n",
@@ -151,8 +152,41 @@ public static class PageExtractor
             "h5" => $"\n##### {inner}\n",
             "h6" => $"\n###### {inner}\n",
             "blockquote" => $"\n> {inner}\n",
+            "table" => $"\n{ConvertTable(node)}\n",
+            "th" or "td" => $"| {inner} ",
+            "tr" => inner + "|\n",
             _ => inner
         };
+    }
+
+    private static string ConvertTable(HtmlNode table)
+    {
+        var sb = new StringBuilder();
+        var rows = table.SelectNodes(".//tr");
+        if (rows == null || rows.Count == 0) return "";
+
+        bool headerProcessed = false;
+        foreach (var row in rows)
+        {
+            var cells = row.SelectNodes("./th | ./td");
+            if (cells == null) continue;
+
+            sb.Append("| ");
+            foreach (var cell in cells)
+            {
+                sb.Append(CleanText(cell.InnerText).Replace("|", "\\|")).Append(" | ");
+            }
+            sb.AppendLine();
+
+            if (!headerProcessed)
+            {
+                sb.Append("| ");
+                foreach (var _ in cells) sb.Append("--- | ");
+                sb.AppendLine();
+                headerProcessed = true;
+            }
+        }
+        return sb.ToString();
     }
 
     private static HashSet<string> ParseHeadingTags(string headingSelector)

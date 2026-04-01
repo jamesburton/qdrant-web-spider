@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Onnx" Version="1.39.*-*" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.*" />
     <PackageReference Include="OpenAI" Version="2.*" />
+    <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
   </ItemGroup>
 
 </Project>

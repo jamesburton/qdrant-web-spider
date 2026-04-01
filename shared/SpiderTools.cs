@@ -17,18 +17,8 @@ public sealed class SpiderTools
         [Description("Minimum similarity score 0-1 (default 0.3)")] float scoreThreshold = 0.3f,
         [Description("Only return results captured within this many days")] int? staleDays = null)
     {
-        var queryVector = await embedder.EmbedAsync(query);
-        var fetchLimit = staleDays.HasValue ? limit * 3 : limit;
-        var allResults = await qdrant.SearchAsync(queryVector, fetchLimit, scoreThreshold);
-
-        IEnumerable<Qdrant.Client.Grpc.ScoredPoint> filtered = allResults;
-        if (staleDays.HasValue)
-        {
-            var cutoff = DateTime.UtcNow.AddDays(-staleDays.Value);
-            filtered = allResults.Where(r =>
-                DateTime.TryParse(r.Payload.GetString("captureDate"), out var dt) && dt >= cutoff);
-        }
-        var results = filtered.Take(limit).ToList();
+        var service = new SearchService(qdrant, embedder);
+        var results = await service.SearchAsync(query, limit, staleDays);
 
         if (results.Count == 0)
             return "No results found.";
@@ -38,14 +28,12 @@ public sealed class SpiderTools
         {
             var r = results[i];
             sb.AppendLine($"## Result {i + 1} (score: {r.Score:F3})");
-            var title = r.Payload.GetString("title");
-            var heading = r.Payload.GetString("heading");
-            if (!string.IsNullOrEmpty(title)) sb.AppendLine($"**Title:** {title}");
-            if (!string.IsNullOrEmpty(heading)) sb.AppendLine($"**Section:** {heading}");
-            sb.AppendLine($"**URL:** {r.Payload.GetString("url")}");
-            sb.AppendLine($"**Captured:** {r.Payload.GetString("captureDate")}");
+            if (!string.IsNullOrEmpty(r.Title)) sb.AppendLine($"**Title:** {r.Title}");
+            if (!string.IsNullOrEmpty(r.Heading)) sb.AppendLine($"**Section:** {r.Heading}");
+            sb.AppendLine($"**URL:** {r.Url}");
+            sb.AppendLine($"**Captured:** {r.CaptureDate}");
             sb.AppendLine();
-            sb.AppendLine(r.Payload.GetString("chunkText"));
+            sb.AppendLine(r.Text);
             sb.AppendLine();
             sb.AppendLine("---");
         }
@@ -58,28 +46,23 @@ public sealed class SpiderTools
         QdrantHelper qdrant,
         [Description("The URL of the page to retrieve")] string url)
     {
-        var results = await qdrant.GetByUrlAsync(url);
+        var results = await qdrant.GetPageAsync(url);
 
         if (results.Count == 0)
             return $"No stored content found for URL: {url}";
 
-        var ordered = results
-            .OrderBy(r => r.Payload.GetInt("chunkIndex"))
-            .ToList();
-
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"# {ordered[0].Payload.GetString("title")}");
+        sb.AppendLine($"# {results[0].Title}");
         sb.AppendLine($"**URL:** {url}");
-        sb.AppendLine($"**Captured:** {ordered[0].Payload.GetString("captureDate")}");
-        sb.AppendLine($"**Chunks:** {ordered.Count}");
+        sb.AppendLine($"**Captured:** {results[0].CaptureDate}");
+        sb.AppendLine($"**Chunks:** {results.Count}");
         sb.AppendLine();
 
-        foreach (var r in ordered)
+        foreach (var r in results)
         {
-            var heading = r.Payload.GetString("heading");
-            if (!string.IsNullOrEmpty(heading))
-                sb.AppendLine($"## {heading}");
-            sb.AppendLine(r.Payload.GetString("chunkText"));
+            if (!string.IsNullOrEmpty(r.Heading))
+                sb.AppendLine($"## {r.Heading}");
+            sb.AppendLine(r.Text);
             sb.AppendLine();
         }
 

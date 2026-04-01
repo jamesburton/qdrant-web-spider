@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>qdrant-web-spider</ToolCommandName>
+    <PackageId>qdrant-web-spider</PackageId>
+    <Title>Qdrant Web Spider</Title>
+    <Description>A semantic web crawler and search CLI that stores data in Qdrant.</Description>
+    <PackageProjectUrl>https://github.com/jamesburton/qdrant-web-spider</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jamesburton/qdrant-web-spider</RepositoryUrl>
+    <Authors>James Burton</Authors>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="shared/Shared.csproj" />
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.*" />
+    <PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

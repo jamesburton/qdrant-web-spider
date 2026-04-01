@@ -1,39 +1,50 @@
 # Qdrant Web Spider
 
-A set of .NET 10 file-based apps that crawl websites and store the results as vector embeddings in a Qdrant database. Includes a search CLI and an MCP server for integration with Claude Code and other AI agents.
+A semantic web crawler and search CLI that stores results in a Qdrant database. It can be run as a standalone .NET tool or integrated with AI agents via the Model Context Protocol (MCP).
 
-## Requirements
+## Installation
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Qdrant](https://qdrant.tech/) (local instance or cloud)
+Install as a global .NET tool:
+
+```bash
+dotnet tool install -g qdrant-web-spider
+```
 
 ## Quick Start
 
 ```bash
-# 1. Start a local Qdrant instance (Docker)
+# 1. Start Qdrant (Docker)
 docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 
-# 2. Create your local config (copy and edit)
-cp spider.json spider.local.json
-# Edit spider.local.json with your target sites
+# 2. Crawl
+qdrant-web-spider crawl --config spider.json
 
-# 3. Crawl
-dotnet spider.cs --config spider.local.json
-
-# 4. Search
-dotnet search.cs --config spider.local.json --query "your search query"
+# 3. Search
+qdrant-web-spider search --query "semantic search query"
 ```
 
-On first run with the default ONNX embedding provider, you'll be prompted to download the `all-MiniLM-L6-v2` model (~80 MB). Use `--auto-download` to skip the prompt.
+## Commands
 
-## File-Based Apps
+| Command | Description |
+|---------|-------------|
+| `crawl` | Web crawler — fetches pages, chunks content, generates embeddings, stores in Qdrant |
+| `search` | Search CLI — semantic search over crawled content |
+| `mcp` | MCP server — exposes search tools for Claude Code / AI agent integration |
 
-| File | Purpose |
-|------|---------|
-| `spider.cs` | Web crawler — fetches pages, chunks content, generates embeddings, stores in Qdrant |
-| `search.cs` | Search CLI — semantic search over crawled content |
-| `mcp-server.cs` | MCP server — exposes search tools for Claude Code / AI agent integration |
-| `shared/` | Shared class library — config, Qdrant helpers, embedding providers, HTML extraction, chunking |
+### Global Options
+
+- `--config <path>`: Path to JSON config file
+- `--auto-download`: Auto-download ONNX model without prompting
+
+## Development (File-Based Apps)
+
+This project also supports running individual files directly using .NET 10:
+
+```bash
+dotnet spider.cs --config spider.local.json
+dotnet search.cs --query "test"
+dotnet mcp-server.cs
+```
 
 ## Configuration
 

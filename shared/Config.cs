@@ -120,6 +120,13 @@ public record EmbeddingConfig
     }
 }
 
+public enum ExtractionMode
+{
+    Html,
+    Markdown,
+    Text
+}
+
 public record CrawlConfig
 {
     [JsonPropertyName("sites")]
@@ -136,6 +143,10 @@ public record CrawlConfig
 
     [JsonPropertyName("userAgent")]
     public string UserAgent { get; init; } = "QdrantWebSpider/1.0";
+
+    [JsonPropertyName("mode")]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ExtractionMode Mode { get; init; } = ExtractionMode.Markdown;
 }
 
 public record SiteConfig
@@ -151,6 +162,10 @@ public record SiteConfig
 
     [JsonPropertyName("selectors")]
     public SelectorConfig Selectors { get; init; } = new();
+
+    [JsonPropertyName("mode")]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ExtractionMode? Mode { get; init; }
 }
 
 public record SelectorConfig

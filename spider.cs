@@ -92,7 +92,8 @@ var crawlTasks = config.Crawl.Sites.Select(async site =>
             }
             catch { continue; }
 
-            var page = PageExtractor.Extract(html, currentUrl, site.Selectors);
+            var mode = site.Mode ?? config.Crawl.Mode;
+            var page = PageExtractor.Extract(html, currentUrl, site.Selectors, mode);
             if (string.IsNullOrWhiteSpace(page.BodyText))
             {
                 EnqueueLinks(page.Links, depth, visited, queue, site.MaxDepth);

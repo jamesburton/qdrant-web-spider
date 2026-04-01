@@ -29,6 +29,7 @@
     "respectRobotsTxt": true,
     "requestDelayMs": 500,
     "maxConcurrency": 4,
-    "userAgent": "QdrantWebSpider/1.0"
+    "userAgent": "QdrantWebSpider/1.0",
+    "mode": "Markdown"
   }
 }

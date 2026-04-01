@@ -49,17 +49,41 @@ public class PageExtractorTests
     }
 
     [Fact]
-    public void Extract_ShouldHandleNoContent()
+    public void Extract_ShouldExtractMarkdown()
     {
         // Arrange
-        var html = "<html><body></body></html>";
-        var selectors = new SelectorConfig { Content = "main", Title = "title", Heading = "h1", Summary = "meta" };
+        var html = @"
+            <html>
+                <body>
+                    <main>
+                        <h1>Heading</h1>
+                        <p>This is <strong>bold</strong> and [link](https://test.com).</p>
+                        <ul><li>Item 1</li></ul>
+                    </main>
+                </body>
+            </html>";
+        var url = "https://example.com";
+        var selectors = new SelectorConfig { Content = "main", Heading = "h1" };
 
         // Act
-        var result = PageExtractor.Extract(html, "https://example.com", selectors);
+        var result = PageExtractor.Extract(html, url, selectors, ExtractionMode.Markdown);
 
         // Assert
-        Assert.Empty(result.Sections);
-        Assert.Empty(result.BodyText);
+        Assert.Contains("**bold**", result.BodyText);
+        Assert.Contains("- Item 1", result.BodyText);
+    }
+
+    [Fact]
+    public void Extract_ShouldExtractHtml()
+    {
+        // Arrange
+        var html = "<html><body><main><p>Hello</p></main></body></html>";
+        var selectors = new SelectorConfig { Content = "main" };
+
+        // Act
+        var result = PageExtractor.Extract(html, "https://example.com", selectors, ExtractionMode.Html);
+
+        // Assert
+        Assert.Contains("<p>Hello</p>", result.BodyText);
     }
 }

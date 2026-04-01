@@ -16,7 +16,7 @@ public record ExtractedSection(string Heading, string Text);
 
 public static class PageExtractor
 {
-    public static ExtractedPage Extract(string html, string url, SelectorConfig selectors)
+    public static ExtractedPage Extract(string html, string url, SelectorConfig selectors, ExtractionMode mode = ExtractionMode.Markdown)
     {
         var doc = new HtmlDocument();
         doc.LoadHtml(html);
@@ -25,7 +25,7 @@ public static class PageExtractor
         var summary = ExtractMetaDescription(doc, selectors.Summary) ?? "";
         var headings = ExtractAll(doc, selectors.Heading);
         var contentNodes = SelectNodes(doc, selectors.Content);
-        var sections = ExtractSections(contentNodes, selectors.Heading);
+        var sections = ExtractSections(contentNodes, selectors.Heading, mode);
         var bodyText = string.Join("\n\n", sections.Select(s => s.Text));
         var links = ExtractLinksFromDoc(doc, url);
 
@@ -70,7 +70,7 @@ public static class PageExtractor
         return links.Distinct().ToList();
     }
 
-    private static List<ExtractedSection> ExtractSections(List<HtmlNode> contentNodes, string headingSelector)
+    private static List<ExtractedSection> ExtractSections(List<HtmlNode> contentNodes, string headingSelector, ExtractionMode mode)
     {
         var sections = new List<ExtractedSection>();
 
@@ -83,7 +83,7 @@ public static class PageExtractor
 
         foreach (var node in contentNodes)
         {
-            foreach (var child in node.DescendantsAndSelf())
+            foreach (var child in node.ChildNodes)
             {
                 if (child.NodeType == HtmlNodeType.Element && headingTags.Contains(child.Name.ToLowerInvariant()))
                 {
@@ -95,11 +95,18 @@ public static class PageExtractor
                     }
                     currentHeading = CleanText(child.InnerText);
                 }
-                else if (child.NodeType == HtmlNodeType.Text)
+                else
                 {
-                    var text = CleanText(child.InnerText);
-                    if (!string.IsNullOrWhiteSpace(text))
-                        currentText.Add(text);
+                    var content = mode switch
+                    {
+                        ExtractionMode.Html => child.OuterHtml,
+                        ExtractionMode.Markdown => HtmlToMarkdown(child),
+                        ExtractionMode.Text => CleanText(child.InnerText),
+                        _ => CleanText(child.InnerText)
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(content))
+                        currentText.Add(content);
                 }
             }
         }
@@ -109,6 +116,43 @@ public static class PageExtractor
             sections.Add(new ExtractedSection(currentHeading, string.Join("\n", currentText).Trim()));
 
         return sections;
+    }
+
+    private static string HtmlToMarkdown(HtmlNode node)
+    {
+        if (node.NodeType == HtmlNodeType.Text)
+            return CleanText(node.InnerText);
+
+        if (node.NodeType != HtmlNodeType.Element)
+            return "";
+
+        var tag = node.Name.ToLowerInvariant();
+        var inner = string.Join("", node.ChildNodes.Select(HtmlToMarkdown)).Trim();
+
+        if (string.IsNullOrWhiteSpace(inner) && tag != "hr" && tag != "br")
+            return "";
+
+        return tag switch
+        {
+            "p" => $"\n{inner}\n",
+            "strong" or "b" => $"**{inner}**",
+            "em" or "i" => $"*{inner}*",
+            "li" => $"\n- {inner}",
+            "ul" or "ol" => $"\n{inner}\n",
+            "a" => $"[{inner}]({node.GetAttributeValue("href", "")})",
+            "code" => $"`{inner}`",
+            "pre" => $"\n```\n{inner}\n```\n",
+            "br" => "\n",
+            "hr" => "\n---\n",
+            "h1" => $"\n# {inner}\n",
+            "h2" => $"\n## {inner}\n",
+            "h3" => $"\n### {inner}\n",
+            "h4" => $"\n#### {inner}\n",
+            "h5" => $"\n##### {inner}\n",
+            "h6" => $"\n###### {inner}\n",
+            "blockquote" => $"\n> {inner}\n",
+            _ => inner
+        };
     }
 
     private static HashSet<string> ParseHeadingTags(string headingSelector)

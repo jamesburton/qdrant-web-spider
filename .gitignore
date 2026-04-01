@@ -1,1 +1,4 @@
-**/*.local.* 
+**/*.local.*
+**/bin/
+**/obj/
+crawl-state.local.json

@@ -1,0 +1,152 @@
+using Google.Protobuf.Collections;
+using Qdrant.Client;
+using Qdrant.Client.Grpc;
+
+namespace QdrantWebSpider;
+
+public class QdrantHelper : IDisposable
+{
+    private readonly QdrantClient _client;
+    private readonly string _collectionName;
+
+    public QdrantHelper(QdrantConfig config)
+    {
+        var uri = new Uri(config.Url);
+
+        if (!string.IsNullOrEmpty(config.ApiKey))
+        {
+            _client = new QdrantClient(
+                host: uri.Host,
+                port: uri.Port,
+                https: uri.Scheme == "https",
+                apiKey: config.ApiKey);
+        }
+        else
+        {
+            _client = new QdrantClient(
+                host: uri.Host,
+                port: uri.Port,
+                https: uri.Scheme == "https");
+        }
+
+        _collectionName = config.CollectionName;
+    }
+
+    public async Task EnsureCollectionAsync(int vectorSize)
+    {
+        var collections = await _client.ListCollectionsAsync();
+        if (collections.Any(c => c == _collectionName))
+        {
+            Console.WriteLine($"Collection '{_collectionName}' already exists.");
+            return;
+        }
+
+        await _client.CreateCollectionAsync(_collectionName, new VectorParams
+        {
+            Size = (ulong)vectorSize,
+            Distance = Distance.Cosine,
+        });
+
+        Console.WriteLine($"Created collection '{_collectionName}' with vector size {vectorSize}.");
+    }
+
+    public async Task UpsertAsync(IReadOnlyList<PointStruct> points)
+    {
+        if (points.Count == 0) return;
+
+        await _client.UpsertAsync(_collectionName, points);
+    }
+
+    public async Task<IReadOnlyList<ScoredPoint>> SearchAsync(
+        float[] queryVector,
+        int limit = 5,
+        float? scoreThreshold = null,
+        Filter? filter = null)
+    {
+        var results = await _client.SearchAsync(
+            _collectionName,
+            queryVector,
+            limit: (ulong)limit,
+            scoreThreshold: scoreThreshold,
+            filter: filter);
+
+        return results;
+    }
+
+    public async Task<IReadOnlyList<ScoredPoint>> GetByUrlAsync(string url)
+    {
+        var filter = new Filter();
+        filter.Must.Add(new Condition
+        {
+            Field = new FieldCondition
+            {
+                Key = "url",
+                Match = new Match { Keyword = url }
+            }
+        });
+
+        var scrollResult = await _client.ScrollAsync(
+            _collectionName,
+            filter: filter,
+            limit: 1000,
+            payloadSelector: true);
+        var points = scrollResult.Result;
+
+        // Convert ScrollResult points to ScoredPoints for consistent return type
+        return points.Select(p =>
+        {
+            var scored = new ScoredPoint { Id = p.Id, Score = 1.0f };
+            foreach (var kv in p.Payload)
+                scored.Payload[kv.Key] = kv.Value;
+            return scored;
+        }).ToList();
+    }
+
+    public async Task<IReadOnlyList<ScoredPoint>> ScrollAllAsync(Filter? filter = null)
+    {
+        var all = new List<ScoredPoint>();
+        PointId? nextOffset = null;
+
+        do
+        {
+            var scrollResult = await _client.ScrollAsync(
+                _collectionName,
+                filter: filter,
+                limit: 100,
+                offset: nextOffset,
+                payloadSelector: true);
+
+            foreach (var p in scrollResult.Result)
+            {
+                var scored = new ScoredPoint { Id = p.Id, Score = 1.0f };
+                foreach (var kv in p.Payload)
+                    scored.Payload[kv.Key] = kv.Value;
+                all.Add(scored);
+            }
+
+            nextOffset = scrollResult.NextPageOffset;
+        } while (nextOffset != null);
+
+        return all;
+    }
+
+    public async Task<ulong> GetPointCountAsync()
+    {
+        var info = await _client.GetCollectionInfoAsync(_collectionName);
+        return info.PointsCount;
+    }
+
+    public void Dispose()
+    {
+        _client.Dispose();
+    }
+}
+
+public static class PayloadExtensions
+{
+    public static string GetString(this MapField<string, Value> payload, string key, string defaultValue = "")
+        => payload.TryGetValue(key, out var v) ? v.StringValue : defaultValue;
+
+    public static long GetInt(this MapField<string, Value> payload, string key, long defaultValue = 0)
+        => payload.TryGetValue(key, out var v) ? v.IntegerValue : defaultValue;
+}

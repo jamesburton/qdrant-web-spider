@@ -2,16 +2,61 @@ namespace QdrantWebSpider;
 
 public interface IEmbeddingProvider : IDisposable
 {
+    string ProviderName { get; }
     int Dimensions { get; }
     Task<float[]> EmbedAsync(string text);
     Task<float[][]> EmbedBatchAsync(string[] texts);
+}
+
+public class RetryingEmbeddingProvider(IEmbeddingProvider inner, int maxRetries = 3) : IEmbeddingProvider
+{
+    public string ProviderName => inner.ProviderName;
+    public int Dimensions => inner.Dimensions;
+
+    public async Task<float[]> EmbedAsync(string text)
+    {
+        int retry = 0;
+        while (true)
+        {
+            try
+            {
+                return await inner.EmbedAsync(text);
+            }
+            catch (Exception ex) when (retry < maxRetries)
+            {
+                retry++;
+                Console.WriteLine($"  [RETRY {retry}/{maxRetries}] Embedding failed for '{inner.ProviderName}': {ex.Message}");
+                await Task.Delay(1000 * (int)Math.Pow(2, retry - 1));
+            }
+        }
+    }
+
+    public async Task<float[][]> EmbedBatchAsync(string[] texts)
+    {
+        int retry = 0;
+        while (true)
+        {
+            try
+            {
+                return await inner.EmbedBatchAsync(texts);
+            }
+            catch (Exception ex) when (retry < maxRetries)
+            {
+                retry++;
+                Console.WriteLine($"  [RETRY {retry}/{maxRetries}] Batch embedding failed for '{inner.ProviderName}': {ex.Message}");
+                await Task.Delay(1000 * (int)Math.Pow(2, retry - 1));
+            }
+        }
+    }
+
+    public void Dispose() => inner.Dispose();
 }
 
 public static class EmbeddingProviderFactory
 {
     public static async Task<IEmbeddingProvider> CreateAsync(EmbeddingConfig config, bool autoDownload = false)
     {
-        return config.Provider.ToLowerInvariant() switch
+        IEmbeddingProvider provider = config.Provider.ToLowerInvariant() switch
         {
             "onnx" => await OnnxEmbeddingProvider.CreateAsync(config, autoDownload),
             "openai" => new OpenAiEmbeddingProvider(config),
@@ -20,5 +65,7 @@ public static class EmbeddingProviderFactory
             "lmstudio" => new OpenAiEmbeddingProvider(config, baseUrl: config.BaseUrl ?? "http://localhost:1234/v1", requireApiKey: false),
             _ => throw new ArgumentException($"Unknown embedding provider: '{config.Provider}'. Supported: onnx, openai, azure-openai, ollama, lmstudio")
         };
+
+        return new RetryingEmbeddingProvider(provider);
     }
 }

@@ -3,15 +3,18 @@ namespace QdrantWebSpider;
 public class RobotsTxt
 {
     private readonly List<string> _disallowed = [];
+    private readonly List<string> _sitemaps = [];
     private readonly int? _crawlDelayMs;
 
-    private RobotsTxt(List<string> disallowed, int? crawlDelayMs)
+    private RobotsTxt(List<string> disallowed, List<string> sitemaps, int? crawlDelayMs)
     {
         _disallowed = disallowed;
+        _sitemaps = sitemaps;
         _crawlDelayMs = crawlDelayMs;
     }
 
     public int? CrawlDelayMs => _crawlDelayMs;
+    public IReadOnlyList<string> Sitemaps => _sitemaps;
 
     public bool IsAllowed(string path)
     {
@@ -26,20 +29,21 @@ public class RobotsTxt
             var response = await http.GetAsync(robotsUrl);
 
             if (!response.IsSuccessStatusCode)
-                return new RobotsTxt([], null);
+                return new RobotsTxt([], [], null);
 
             var content = await response.Content.ReadAsStringAsync();
             return Parse(content);
         }
         catch
         {
-            return new RobotsTxt([], null);
+            return new RobotsTxt([], [], null);
         }
     }
 
     public static RobotsTxt Parse(string content)
     {
         var disallowed = new List<string>();
+        var sitemaps = new List<string>();
         int? crawlDelayMs = null;
         bool inRelevantBlock = false;
 
@@ -54,7 +58,11 @@ public class RobotsTxt
             var key = line[..colonIndex].Trim().ToLowerInvariant();
             var value = line[(colonIndex + 1)..].Trim();
 
-            if (key == "user-agent")
+            if (key == "sitemap")
+            {
+                sitemaps.Add(value);
+            }
+            else if (key == "user-agent")
             {
                 inRelevantBlock = value == "*" ||
                     value.Contains("QdrantWebSpider", StringComparison.OrdinalIgnoreCase);
@@ -68,6 +76,6 @@ public class RobotsTxt
             }
         }
 
-        return new RobotsTxt(disallowed, crawlDelayMs);
+        return new RobotsTxt(disallowed, sitemaps, crawlDelayMs);
     }
 }

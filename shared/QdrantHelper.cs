@@ -35,7 +35,7 @@ public class QdrantHelper : IDisposable
     public async Task EnsureCollectionAsync(int vectorSize)
     {
         var collections = await _client.ListCollectionsAsync();
-        if (collections.Any(c => c == _collectionName))
+        if (collections.Contains(_collectionName))
         {
             Console.WriteLine($"Collection '{_collectionName}' already exists.");
             return;
@@ -47,7 +47,11 @@ public class QdrantHelper : IDisposable
             Distance = Distance.Cosine,
         });
 
-        Console.WriteLine($"Created collection '{_collectionName}' with vector size {vectorSize}.");
+        // Create indexes for faster filtering
+        await _client.CreatePayloadIndexAsync(_collectionName, "url", PayloadSchemaType.Keyword);
+        await _client.CreatePayloadIndexAsync(_collectionName, "captureDate", PayloadSchemaType.Datetime);
+
+        Console.WriteLine($"Created collection '{_collectionName}' with vector size {vectorSize} and payload indexes.");
     }
 
     public async Task UpsertAsync(IReadOnlyList<PointStruct> points)

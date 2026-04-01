@@ -35,31 +35,40 @@ using var semaphore = new SemaphoreSlim(config.Crawl.MaxConcurrency);
 var totalPages = 0;
 var totalChunks = 0;
 
-foreach (var site in config.Crawl.Sites)
+var crawlTasks = config.Crawl.Sites.Select(async site =>
 {
-    Console.WriteLine($"\nCrawling: {site.Url} (depth: {site.MaxDepth})");
-
+    Console.WriteLine($"\n[QUEUED] {site.Url} (depth: {site.MaxDepth})");
+    
     var baseUri = new Uri(site.Url);
-
+    
     RobotsTxt? robots = null;
     if (config.Crawl.RespectRobotsTxt)
     {
         robots = await RobotsTxt.FetchAsync(http, baseUri);
-        Console.WriteLine("  robots.txt loaded.");
     }
 
     var effectiveDelay = robots?.CrawlDelayMs ?? config.Crawl.RequestDelayMs;
-
     var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var queue = new Queue<(string Url, int Depth)>();
-    queue.Enqueue((site.Url.TrimEnd('/'), 0));
 
-    void EnqueueLinks(List<string> links, int fromDepth)
+    if (robots != null && robots.Sitemaps.Any())
     {
-        if (fromDepth >= site.MaxDepth) return;
-        foreach (var link in links)
-            if (!visited.Contains(link))
-                queue.Enqueue((link, fromDepth + 1));
+        foreach (var sitemapUrl in robots.Sitemaps)
+        {
+            var sitemapUrls = await SitemapParser.FetchAndParseAsync(http, sitemapUrl);
+            foreach (var url in sitemapUrls)
+            {
+                if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase))
+                {
+                    queue.Enqueue((url.TrimEnd('/'), 0));
+                }
+            }
+        }
+    }
+
+    if (queue.Count == 0)
+    {
+        queue.Enqueue((site.Url.TrimEnd('/'), 0));
     }
 
     while (queue.Count > 0)
@@ -70,41 +79,30 @@ foreach (var site in config.Crawl.Sites)
             continue;
 
         if (robots != null && !robots.IsAllowed(new Uri(currentUrl).AbsolutePath))
-        {
-            Console.WriteLine($"  [SKIP] {currentUrl} (robots.txt)");
             continue;
-        }
 
         await semaphore.WaitAsync();
         try
         {
-            Console.Write($"  [{depth}] {currentUrl} ... ");
-
-            string html;
+            string? html;
             try
             {
-                html = await http.GetStringAsync(currentUrl);
+                html = await HttpHelper.GetStringWithRetryAsync(http, currentUrl);
+                if (html == null) continue;
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"FAILED ({ex.Message})");
-                continue;
-            }
+            catch { continue; }
 
             var page = PageExtractor.Extract(html, currentUrl, site.Selectors);
-
             if (string.IsNullOrWhiteSpace(page.BodyText))
             {
-                Console.WriteLine("no content.");
-                EnqueueLinks(page.Links, depth);
+                EnqueueLinks(page.Links, depth, visited, queue, site.MaxDepth);
                 continue;
             }
 
             var chunks = Chunker.ChunkPage(page);
             if (chunks.Count == 0)
             {
-                Console.WriteLine("no chunks.");
-                EnqueueLinks(page.Links, depth);
+                EnqueueLinks(page.Links, depth, visited, queue, site.MaxDepth);
                 continue;
             }
 
@@ -115,8 +113,7 @@ foreach (var site in config.Crawl.Sites)
                 var existingHash = existingPoints[0].Payload.GetString("contentHash");
                 if (existingHash == contentHash)
                 {
-                    Console.WriteLine($"{chunks.Count} chunks (unchanged, skipped).");
-                    EnqueueLinks(page.Links, depth);
+                    EnqueueLinks(page.Links, depth, visited, queue, site.MaxDepth);
                     continue;
                 }
             }
@@ -151,11 +148,12 @@ foreach (var site in config.Crawl.Sites)
             }
 
             await qdrant.UpsertAsync(points);
-            totalPages++;
-            totalChunks += chunks.Count;
-            Console.WriteLine($"{chunks.Count} chunks stored.");
+            Interlocked.Increment(ref totalPages);
+            Interlocked.Add(ref totalChunks, chunks.Count);
+            
+            Console.WriteLine($"  [{depth}] {currentUrl} -> {chunks.Count} chunks stored.");
 
-            EnqueueLinks(page.Links, depth);
+            EnqueueLinks(page.Links, depth, visited, queue, site.MaxDepth);
 
             if (effectiveDelay > 0)
                 await Task.Delay(effectiveDelay);
@@ -165,10 +163,22 @@ foreach (var site in config.Crawl.Sites)
             semaphore.Release();
         }
     }
-}
+    
+    Console.WriteLine($"\n[DONE] {site.Url}");
+});
+
+await Task.WhenAll(crawlTasks);
 
 var finalCount = await qdrant.GetPointCountAsync();
-Console.WriteLine($"\nDone. Crawled {totalPages} pages, stored {totalChunks} chunks. Collection total: {finalCount} points.");
+Console.WriteLine($"\nAll crawls finished. Processed {totalPages} pages, stored {totalChunks} chunks. Collection total: {finalCount} points.");
+
+static void EnqueueLinks(List<string> links, int fromDepth, HashSet<string> visited, Queue<(string Url, int Depth)> queue, int maxDepth)
+{
+    if (fromDepth >= maxDepth) return;
+    foreach (var link in links)
+        if (!visited.Contains(link))
+            queue.Enqueue((link, fromDepth + 1));
+}
 
 static string ComputeHash(string text)
 {

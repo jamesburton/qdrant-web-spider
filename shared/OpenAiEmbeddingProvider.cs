@@ -9,9 +9,13 @@ public class OpenAiEmbeddingProvider : IEmbeddingProvider
     private readonly EmbeddingClient _client;
     private readonly int _dimensions;
     private readonly EmbeddingGenerationOptions? _options;
+    private readonly string _providerName;
+
+    public string ProviderName => _providerName;
 
     public OpenAiEmbeddingProvider(EmbeddingConfig config, bool isAzure = false, string? baseUrl = null, bool requireApiKey = true)
     {
+        _providerName = config.Provider;
         var apiKey = config.ApiKey;
         if (requireApiKey && apiKey == null)
             throw new InvalidOperationException(

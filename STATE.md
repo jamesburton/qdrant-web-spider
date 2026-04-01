@@ -4,29 +4,29 @@
 
 ## Current Status
 - **Phase:** Initial Setup & Discovery
-- **Health:** 🟡 Qdrant service unreachable; environment not fully configured.
+- **Health:** 🟢 Qdrant service reachable; environment configured.
 - **Last Updated:** 2026-04-01
 
 ## 📋 Task List
 
 ### 🏗️ Infrastructure & Environment
-- [ ] Start/Verify local Qdrant instance (Docker: `docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant`) [TODO]
-- [ ] Configure `spider.local.json` for testing [TODO]
-- [ ] Verify ONNX model download (`all-MiniLM-L6-v2`) [TODO]
+- [x] Start/Verify local Qdrant instance (Docker: `docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant`) [DONE]
+- [x] Configure `spider.local.json` for testing [DONE]
+- [x] Verify ONNX model download (`all-MiniLM-L6-v2`) [DONE]
 
 ### 📦 Source Control
-- [ ] Track existing project files in Git [TODO]
-- [ ] Commit initial baseline [TODO]
+- [x] Track existing project files in Git [DONE]
+- [x] Commit initial baseline [DONE]
 
 ### 🕷️ Crawler & Search
-- [ ] Test crawl on a small target (e.g., example.com) [TODO]
-- [ ] Verify semantic search via `search.cs` [TODO]
-- [ ] Verify MCP server tools via `mcp-server.cs` [TODO]
+- [x] Test crawl on a small target (e.g., example.com) [DONE]
+- [x] Verify semantic search via `search.cs` [DONE]
+- [x] Verify MCP server tools via `mcp-server.cs` [DONE]
 
 ### 🛠️ Enhancements (Backlog)
-- [ ] Add unit tests for `Chunker` and `PageExtractor` [BACKLOG]
-- [ ] Implement retry logic for failed HTTP requests [BACKLOG]
-- [ ] Add support for XML sitemaps [BACKLOG]
+- [x] Add unit tests for `Chunker` and `PageExtractor` [DONE]
+- [x] Implement retry logic for failed HTTP requests [DONE]
+- [x] Add support for XML sitemaps [DONE]
 - [ ] Improve error handling for embedding provider failures [BACKLOG]
 
 ## 📝 Notes

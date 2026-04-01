@@ -5,7 +5,7 @@ public record Chunk(string Heading, string Text, int Index);
 public static class Chunker
 {
     private const int MaxTokenBudget = 512;
-    private const int MinTokenThreshold = 50;
+    private const int MinTokenThreshold = 10;
     private const double ApproxCharsPerToken = 4.0;
 
     public static List<Chunk> ChunkPage(ExtractedPage page)

@@ -9,6 +9,8 @@ public class OnnxEmbeddingProvider : IEmbeddingProvider
     private readonly BertOnnxTextEmbeddingGenerationService _service;
     private readonly int _dimensions;
 
+    public string ProviderName => "onnx";
+
     private OnnxEmbeddingProvider(BertOnnxTextEmbeddingGenerationService service, int dimensions)
     {
         _service = service;

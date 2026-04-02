@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "qdrant-web-spider": {
+      "command": "qdrant-web-spider",
+      "args": ["mcp", "--config", "spider.json"]
+    }
+  }
+}

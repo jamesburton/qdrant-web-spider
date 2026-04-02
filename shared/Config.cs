@@ -27,30 +27,29 @@ public record SpiderConfig
         }
 
         // Overlay environment variables for secrets
+        var qdrantApiKey = GetArgValue(args, "--qdrant-key") 
+            ?? Environment.GetEnvironmentVariable("QDRANT_API_KEY") 
+            ?? config.Qdrant.ApiKey;
+
+        var embeddingApiKey = GetArgValue(args, "--api-key")
+            ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
+            ?? Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY")
+            ?? config.Embedding.ApiKey;
+
+        // Overlay CLI args and environment variables
         var qdrant = config.Qdrant with
         {
-            ApiKey = Environment.GetEnvironmentVariable("QDRANT_API_KEY") ?? config.Qdrant.ApiKey
+            ApiKey = qdrantApiKey,
+            Url = GetArgValue(args, "--qdrant-url") ?? config.Qdrant.Url,
+            CollectionName = GetArgValue(args, "--collection") ?? config.Qdrant.CollectionName,
         };
 
         var embedding = config.Embedding with
         {
-            ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY")
-                ?? Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY")
-                ?? config.Embedding.ApiKey
-        };
-
-        // Overlay CLI args
-        qdrant = qdrant with
-        {
-            Url = GetArgValue(args, "--qdrant-url") ?? qdrant.Url,
-            CollectionName = GetArgValue(args, "--collection") ?? qdrant.CollectionName,
-        };
-
-        embedding = embedding with
-        {
-            Provider = GetArgValue(args, "--provider") ?? embedding.Provider,
-            Model = GetArgValue(args, "--model") ?? embedding.Model,
-            BaseUrl = GetArgValue(args, "--embedding-url") ?? embedding.BaseUrl,
+            ApiKey = embeddingApiKey,
+            Provider = GetArgValue(args, "--provider") ?? config.Embedding.Provider,
+            Model = GetArgValue(args, "--model") ?? config.Embedding.Model,
+            BaseUrl = GetArgValue(args, "--embedding-url") ?? config.Embedding.BaseUrl,
         };
 
         return config with { Qdrant = qdrant, Embedding = embedding };

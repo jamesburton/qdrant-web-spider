@@ -65,7 +65,18 @@ public class CrawlService(
                         continue;
                     }
 
-                    var embeddings = await embedder.EmbedBatchAsync(chunks.Select(c => c.Text).ToArray());
+                    float[][] embeddings;
+                    try
+                    {
+                        embeddings = await embedder.EmbedBatchAsync(chunks.Select(c => c.Text).ToArray());
+                    }
+                    catch (EmbeddingProviderException ex)
+                    {
+                        logger?.Invoke($"  [EMBED ERROR] {url} -> {ex.Message}");
+                        EnqueueLinks(page.Links, depth, site.MaxDepth, visited, queue);
+                        continue;
+                    }
+
                     var points = chunks.Select((c, i) => new PointStruct
                     {
                         Id = new PointId { Uuid = GeneratePointId(url, c.Index) },

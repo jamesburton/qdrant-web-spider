@@ -1,6 +1,16 @@
 # Qdrant Web Spider
 
-A semantic web crawler and search CLI that stores results in a Qdrant database. It can be run as a standalone .NET tool or integrated with AI agents via the Model Context Protocol (MCP).
+A high-performance semantic web crawler and search CLI that stores data in Qdrant. It features site-level parallelism, sitemap discovery, resilient retries, and intelligent Markdown extraction.
+
+## Features
+
+- **Parallel Crawling:** Multi-site concurrent crawling with polite per-site concurrency.
+- **Intelligent Extraction:** Extracts content as clean **Markdown** (default), HTML, or Text.
+- **Sitemap Support:** Discovers URLs from `sitemap.xml` and sitemap indices.
+- **Resilient:** Automatic exponential backoff retries for HTTP and Embedding requests.
+- **Semantic Search:** Built-in CLI for performing vector search over crawled content.
+- **MCP Integration:** Full Model Context Protocol (MCP) support for use with Claude Code and other AI agents.
+- **Hybrid Embeddings:** Supports local ONNX (CPU) or OpenAI/Azure/Ollama providers.
 
 ## Installation
 
@@ -16,31 +26,42 @@ dotnet tool install -g qdrant-web-spider
 # 1. Start Qdrant (Docker)
 docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 
-# 2. Crawl
+# 2. Configure sites in spider.json
+# 3. Crawl
 qdrant-web-spider crawl --config spider.json
 
-# 3. Search
-qdrant-web-spider search --query "semantic search query"
+# 4. Search
+qdrant-web-spider search --query "how does vector search work?"
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `crawl` | Web crawler — fetches pages, chunks content, generates embeddings, stores in Qdrant |
+| `crawl` | Web crawler — fetches pages, chunks, generates embeddings, stores in Qdrant |
 | `search` | Search CLI — semantic search over crawled content |
-| `mcp` | MCP server — exposes search tools for Claude Code / AI agent integration |
+| `mcp` | MCP server — exposes search tools for AI agent integration |
 
 ### Global Options
 
 - `--config <path>`: Path to JSON config file
 - `--auto-download`: Auto-download ONNX model without prompting
+- `--api-key <key>`: OpenAI/Azure API key (overrides env var)
+- `--qdrant-url <url>`: Qdrant endpoint (default: http://localhost:6334)
+- `--collection <name>`: Qdrant collection name
 
-## Development (File-Based Apps)
+## Extraction Modes
 
-This project also supports running individual files directly using .NET 10:
+The spider supports three extraction modes, configurable in `spider.json`:
+
+- `Markdown` (Default): Converts HTML to clean Markdown tables, lists, and code blocks.
+- `Html`: Persists raw HTML fragments.
+- `Text`: Persists plain text only.
+
+## Development
 
 ```bash
+# Run directly from source
 dotnet spider.cs --config spider.local.json
 dotnet search.cs --query "test"
 dotnet mcp-server.cs

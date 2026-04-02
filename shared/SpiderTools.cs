@@ -18,7 +18,15 @@ public sealed class SpiderTools
         [Description("Only return results captured within this many days")] int? staleDays = null)
     {
         var service = new SearchService(qdrant, embedder);
-        var results = await service.SearchAsync(query, limit, staleDays);
+        List<SearchResult> results;
+        try
+        {
+            results = await service.SearchAsync(query, limit, staleDays);
+        }
+        catch (EmbeddingProviderException ex)
+        {
+            return $"Embedding error: {ex.Message}";
+        }
 
         if (results.Count == 0)
             return "No results found.";

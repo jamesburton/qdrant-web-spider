@@ -11,8 +11,19 @@ using ModelContextProtocol.Server;
 using QdrantWebSpider;
 
 var config = await SpiderConfig.LoadAsync(null, args);
-var qdrantHelper = new QdrantHelper(config.Qdrant);
-var embeddingProvider = await EmbeddingProviderFactory.CreateAsync(config.Embedding, autoDownload: true);
+QdrantHelper? qdrantHelper = null;
+IEmbeddingProvider? embeddingProvider = null;
+
+try
+{
+    qdrantHelper = new QdrantHelper(config.Qdrant);
+    embeddingProvider = await EmbeddingProviderFactory.CreateAsync(config.Embedding, autoDownload: true);
+}
+catch (EmbeddingProviderException ex)
+{
+    Console.Error.WriteLine(ex.Message);
+    return 1;
+}
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -28,3 +39,4 @@ builder.Services
     .WithTools<SpiderTools>();
 
 await builder.Build().RunAsync();
+return 0;

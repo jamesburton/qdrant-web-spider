@@ -27,9 +27,22 @@ dotnet tool install -g qdrant-web-spider
 
 ```bash
 # Run any command via dnx — no install required
-dnx qdrant-web-spider crawl --config spider.json
-dnx qdrant-web-spider search --query "how does vector search work?"
-dnx qdrant-web-spider mcp --config spider.json
+dotnet dnx qdrant-web-spider crawl --config spider.json
+dotnet dnx qdrant-web-spider search --query "how does vector search work?"
+dotnet dnx qdrant-web-spider mcp --config spider.json
+```
+
+For pre-release versions (before the package is published to NuGet as stable):
+
+```bash
+# Include pre-release versions
+dotnet dnx --prerelease qdrant-web-spider crawl --config spider.json
+
+# Pin a specific pre-release version
+dotnet dnx qdrant-web-spider@1.3.0-alpha.0.1 crawl --config spider.json
+
+# Use a local NuGet source (e.g. from dotnet pack output)
+dotnet dnx --add-source ./nupkgs qdrant-web-spider crawl --config spider.json
 ```
 
 `dnx` downloads the tool on first use and caches it locally. Subsequent runs use the cache.
@@ -141,7 +154,7 @@ This repo includes `.claude/settings.json` pre-configured. Clone the repo and th
 
 #### Option 2: Global settings
 
-Add to `~/.claude/settings.json` to make the MCP server available in all projects:
+Add to `~/.claude.json` (global MCP config) to make the MCP server available in all projects:
 
 ```json
 {
@@ -160,8 +173,8 @@ Add to `~/.claude/settings.json` to make the MCP server available in all project
 {
   "mcpServers": {
     "qdrant-web-spider": {
-      "command": "dnx",
-      "args": ["qdrant-web-spider", "mcp", "--config", "/path/to/spider.json"]
+      "command": "dotnet",
+      "args": ["dnx", "--prerelease", "qdrant-web-spider", "mcp", "--config", "/path/to/spider.json"]
     }
   }
 }

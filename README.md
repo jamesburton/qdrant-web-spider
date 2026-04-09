@@ -1,53 +1,74 @@
 # Qdrant Web Spider
 
-A high-performance semantic web crawler and search CLI that stores data in Qdrant. It features site-level parallelism, sitemap discovery, resilient retries, and intelligent Markdown extraction.
+A semantic web crawler and search tool that indexes content into [Qdrant](https://qdrant.tech) for vector search. Crawl documentation sites, search them from the CLI, or expose them as MCP tools for AI agents.
 
 ## Features
 
-- **Parallel Crawling:** Multi-site concurrent crawling with polite per-site concurrency.
-- **Intelligent Extraction:** Extracts content as clean **Markdown** (default), HTML, or Text.
-- **Sitemap Support:** Discovers URLs from `sitemap.xml` and sitemap indices.
-- **Resilient:** Automatic exponential backoff retries for HTTP and Embedding requests.
-- **Semantic Search:** Built-in CLI for performing vector search over crawled content.
-- **MCP Integration:** Full Model Context Protocol (MCP) support for use with Claude Code and other AI agents.
-- **Hybrid Embeddings:** Supports local ONNX (CPU) or OpenAI/Azure/Ollama providers.
-- **Staleness Detection:** SHA-256 content hashing skips unchanged pages on re-crawl; `captureDate` enables stale content queries.
+- **Parallel crawling** with polite per-site concurrency and configurable delay
+- **Intelligent extraction** to clean Markdown (default), HTML, or plain text
+- **Sitemap discovery** from `robots.txt` and sitemap indices
+- **Resilient** HTTP and embedding requests with exponential backoff retries
+- **Semantic search** via CLI or MCP tools
+- **Hybrid embeddings** — local ONNX (zero config), OpenAI, Azure OpenAI, Ollama, or LM Studio
+- **Staleness detection** — SHA-256 content hashing skips unchanged pages; `captureDate` enables freshness queries
+- **Single-page mode** — set `maxDepth: 0` to crawl just one URL without following links
+
+## Requirements
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- A running [Qdrant](https://qdrant.tech/documentation/quick-start/) instance
+- No API keys needed with the default ONNX embedding provider
+
+## Quick Start
+
+```bash
+# 1. Start Qdrant
+docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
+
+# 2. Configure target sites in spider.json
+
+# 3. Crawl
+dnx qdrant-web-spider crawl --config spider.json
+
+# 4. Search
+dnx qdrant-web-spider search --query "how does vector search work?"
+```
 
 ## Installation
 
-### Install as a global .NET tool
+### Via dnx (no install required)
+
+[`dnx`](https://andrewlock.net/exploring-dotnet-10-preview-features-5-running-one-off-dotnet-tools-with-dnx/) downloads the tool on first use and caches it locally:
 
 ```bash
-dotnet tool install -g qdrant-web-spider
-```
-
-### Run without installing (dnx)
-
-.NET 10+ supports running tools directly without permanent installation:
-
-```bash
-# Run any command via dnx — no install required
 dnx qdrant-web-spider crawl --config spider.json
-dnx qdrant-web-spider search --query "how does vector search work?"
+dnx qdrant-web-spider search --query "authentication setup"
 dnx qdrant-web-spider mcp --config spider.json
 ```
 
-For pre-release versions (before the package is published to NuGet as stable):
+For pre-release versions:
 
 ```bash
-# Include pre-release versions
+# Latest pre-release
 dnx --prerelease qdrant-web-spider crawl --config spider.json
 
-# Pin a specific pre-release version
-dnx qdrant-web-spider@1.3.0-alpha.0.1 crawl --config spider.json
+# Pinned version
+dnx qdrant-web-spider@1.0.0 crawl --config spider.json
 
-# Use a local NuGet source (e.g. from dotnet pack output)
+# From a local nupkg
 dnx --add-source ./nupkgs qdrant-web-spider crawl --config spider.json
 ```
 
-`dnx` downloads the tool on first use and caches it locally. Subsequent runs use the cache.
+### Global .NET tool
 
-### Run from source (.NET 10 file-based apps)
+```bash
+dotnet tool install -g qdrant-web-spider
+qdrant-web-spider crawl --config spider.json
+```
+
+### From source
+
+The project uses .NET 10 [file-based apps](https://learn.microsoft.com/en-us/dotnet/core/sdk/file-based-apps) — each `.cs` file in the root is independently runnable:
 
 ```bash
 dotnet spider.cs --config spider.local.json
@@ -55,32 +76,18 @@ dotnet search.cs --query "test"
 dotnet mcp-server.cs --config spider.local.json
 ```
 
-## Quick Start
-
-```bash
-# 1. Start Qdrant (Docker)
-docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
-
-# 2. Configure sites in spider.json
-# 3. Crawl
-qdrant-web-spider crawl --config spider.json
-
-# 4. Search
-qdrant-web-spider search --query "how does vector search work?"
-```
-
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `crawl` | Web crawler — fetches pages, chunks, generates embeddings, stores in Qdrant |
-| `search` | Search CLI — semantic search over crawled content |
-| `mcp` | MCP server — exposes search tools for AI agent integration |
+| `crawl` | Fetch pages, chunk text, generate embeddings, store in Qdrant |
+| `search` | Semantic search over crawled content |
+| `mcp` | Start MCP server exposing search tools for AI agents |
 
 ### Global Options
 
-| Argument | Description |
-|----------|-------------|
+| Flag | Description |
+|------|-------------|
 | `--config <path>` | Path to JSON config file |
 | `--auto-download` | Auto-download ONNX model without prompting |
 | `--api-key <key>` | OpenAI/Azure API key (overrides env var) |
@@ -89,32 +96,35 @@ qdrant-web-spider search --query "how does vector search work?"
 | `--qdrant-url <url>` | Qdrant endpoint (default: `http://localhost:6334`) |
 | `--collection <name>` | Qdrant collection name |
 
-## Spider (Crawler)
+## Crawling
 
 ```bash
 qdrant-web-spider crawl --config spider.json
 ```
 
 The crawler performs BFS traversal per configured site:
-- Follows same-domain links up to `maxDepth`
+
+- Follows same-domain links up to `maxDepth` (set `0` for single-page crawl)
 - Respects `robots.txt` (Disallow rules and Crawl-delay)
-- Discovers URLs from `sitemap.xml` automatically
+- Discovers URLs from `sitemap.xml` automatically (skipped when `maxDepth` is 0)
 - Extracts content using configured CSS/XPath selectors
 - Chunks text by heading boundaries (~512 token budget)
 - Generates embeddings and stores chunks in Qdrant
 - Skips unchanged pages on re-crawl (SHA-256 content hash)
 
-Each stored chunk includes: `url`, `title`, `heading`, `chunkIndex`, `chunkText`, `summary`, `contentSelector`, `captureDate`, `contentHash`.
+Each chunk stores: `url`, `title`, `heading`, `chunkIndex`, `chunkText`, `summary`, `contentSelector`, `captureDate`, `contentHash`.
 
 ### Extraction Modes
 
-Configurable per-site or globally in `spider.json`:
+Set per-site or globally via the `mode` field:
 
-- `Markdown` (Default): Converts HTML to clean Markdown tables, lists, and code blocks.
-- `Html`: Persists raw HTML fragments.
-- `Text`: Persists plain text only.
+| Mode | Description |
+|------|-------------|
+| `Markdown` (default) | Clean Markdown with tables, lists, and code blocks |
+| `Html` | Raw HTML fragments |
+| `Text` | Plain text only |
 
-## Search CLI
+## Searching
 
 ```bash
 qdrant-web-spider search --query "how to configure authentication"
@@ -126,35 +136,29 @@ qdrant-web-spider search --query "setup guide" --stale-days 30
 |------|-------------|
 | `--query <text>` | Search query (required) |
 | `--limit <n>` | Max results (default 5) |
-| `--json` | JSON output format |
-| `--stale-days <n>` | Only show results captured within N days |
+| `--json` | Output as JSON |
+| `--stale-days <n>` | Only results captured within N days |
 
 ## MCP Server
 
-The MCP server exposes search tools via stdio transport for use with Claude Code, Cursor, and other MCP-compatible AI agents.
+Exposes search tools via stdio transport for Claude Code, Cursor, and other MCP-compatible agents.
 
 ```bash
 qdrant-web-spider mcp --config spider.json
 ```
 
-### Available Tools
+### Tools
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `search_web_pages` | Semantic search over crawled pages | `query`, `limit?`, `scoreThreshold?`, `staleDays?` |
-| `get_page` | Retrieve all stored chunks for a URL | `url` |
+| `get_page` | Retrieve all chunks for a URL | `url` |
 | `list_urls` | List all crawled URLs with capture dates | `staleDays?` |
 | `crawl_status` | Collection stats and configuration | — |
 
-### Claude Code Integration
+### Integration
 
-#### Option 1: Project-level (recommended)
-
-This repo includes `.claude/settings.json` pre-configured. Clone the repo and the MCP server is available automatically when working in this directory.
-
-#### Option 2: Global settings
-
-Add to `~/.claude.json` (global MCP config) to make the MCP server available in all projects:
+**Claude Code** — add to `~/.claude.json`:
 
 ```json
 {
@@ -167,7 +171,7 @@ Add to `~/.claude.json` (global MCP config) to make the MCP server available in 
 }
 ```
 
-#### Option 3: Via dnx (no install)
+**Via dnx** (no global install):
 
 ```json
 {
@@ -180,7 +184,7 @@ Add to `~/.claude.json` (global MCP config) to make the MCP server available in 
 }
 ```
 
-#### Option 4: From source
+**From source:**
 
 ```json
 {
@@ -193,17 +197,11 @@ Add to `~/.claude.json` (global MCP config) to make the MCP server available in 
 }
 ```
 
-### Claude Code Skill
-
-This repo includes a Claude Code skill at `.claude/skills/web-spider/SKILL.md` that teaches Claude when and how to use the MCP tools. When working in this repo, Claude will automatically use `search_web_pages`, `get_page`, `list_urls`, and `crawl_status` to answer questions about crawled content.
-
-### Claude Code Agent
-
-A `crawl-and-index` agent is defined at `.claude/agents/crawl-and-index.md` for autonomous crawling workflows. It can read and modify `spider.json`, run the crawler, and report results.
+This repo also includes `.claude/settings.json` (project-level MCP config), a skill definition at `.claude/skills/web-spider/SKILL.md`, and a `crawl-and-index` agent at `.claude/agents/crawl-and-index.md`.
 
 ## Configuration
 
-Create a `spider.local.json` (gitignored) based on `spider.json`:
+Copy `spider.json` to `spider.local.json` (gitignored) and edit:
 
 ```json
 {
@@ -228,73 +226,71 @@ Create a `spider.local.json` (gitignored) based on `spider.json`:
           "summary": "meta[name=description]"
         }
       }
-    ]
+    ],
+    "respectRobotsTxt": true,
+    "requestDelayMs": 500,
+    "maxConcurrency": 4,
+    "userAgent": "QdrantWebSpider/1.0",
+    "mode": "Markdown"
   }
 }
 ```
 
 ### Embedding Providers
 
-| Provider | `provider` value | API key required | Default model |
-|----------|-----------------|------------------|---------------|
-| Local ONNX (default) | `onnx` | No | `all-MiniLM-L6-v2` (384 dims) |
-| OpenAI | `openai` | Yes (`OPENAI_API_KEY`) | `text-embedding-3-small` (1536 dims) |
-| Azure OpenAI | `azure-openai` | Yes (`AZURE_OPENAI_API_KEY`) | configurable |
+| Provider | Config value | API key | Default model |
+|----------|-------------|---------|---------------|
+| ONNX (default) | `onnx` | No | `all-MiniLM-L6-v2` (384 dims) |
+| OpenAI | `openai` | `OPENAI_API_KEY` | `text-embedding-3-small` (1536 dims) |
+| Azure OpenAI | `azure-openai` | `AZURE_OPENAI_API_KEY` | configurable |
 | Ollama | `ollama` | No | `nomic-embed-text` (768 dims) |
 | LM Studio | `lmstudio` | No | configurable |
 
-Set API keys via environment variables or in the config JSON. Priority: CLI args > env vars > JSON values.
+Priority: CLI args > environment variables > config JSON values.
 
 ### Staleness Detection
 
-Content is tracked with `captureDate` (ISO 8601) and `contentHash` (SHA-256) fields:
+Each chunk stores `captureDate` (ISO 8601) and `contentHash` (SHA-256):
 
-- **On re-crawl:** Pages with unchanged content hash are skipped automatically.
-- **Search filtering:** Use `--stale-days 30` to only return results captured within the last 30 days.
-- **MCP queries:** The `staleDays` parameter on `search_web_pages` and `list_urls` enables stale content discovery.
+- **Re-crawl:** Unchanged pages (same hash) are skipped automatically
+- **Search:** `--stale-days 30` filters to results captured within 30 days
+- **MCP:** `staleDays` parameter on `search_web_pages` and `list_urls`
 
-To find and refresh stale content:
-```bash
-# Find URLs not refreshed in 7 days (via MCP: list_urls with staleDays=7)
-# Then re-crawl to refresh
-qdrant-web-spider crawl --config spider.json
-```
-
-## Architecture
+## Project Structure
 
 ```
 qdrant-web-spider/
-  shared/                      # Class library (Shared.csproj)
-    Config.cs                  # SpiderConfig model + loader
-    QdrantHelper.cs            # Collection management, upsert, search, scroll
-    EmbeddingProvider.cs       # IEmbeddingProvider interface + factory + retry wrapper
-    OnnxEmbeddingProvider.cs   # Local ONNX via SemanticKernel.Connectors.Onnx
-    OpenAiEmbeddingProvider.cs # OpenAI / Azure / Ollama / LM Studio
-    Chunker.cs                 # Heading-boundary + token-budget splitting
-    PageExtractor.cs           # HtmlAgilityPack extraction + link discovery
-    ModelDownloader.cs         # Auto-download ONNX models from Hugging Face
-    RobotsTxt.cs               # robots.txt parsing
-    SitemapParser.cs           # sitemap.xml discovery
-    CrawlService.cs            # BFS crawl orchestration
-    SearchService.cs           # Search query execution
-    SpiderTools.cs             # MCP tool definitions
-    HttpHelper.cs              # Resilient HTTP with retries
-  Program.cs                   # Unified CLI entry point (System.CommandLine)
+  Program.cs                   # CLI entry point (crawl, search, mcp commands)
   spider.cs                    # File-based app: crawl
   search.cs                    # File-based app: search
   mcp-server.cs                # File-based app: MCP server
   spider.json                  # Config template
+  shared/
+    Config.cs                  # Configuration model + three-tier loader
+    CrawlService.cs            # BFS crawl orchestration
+    SearchService.cs           # Search query execution
+    SpiderTools.cs             # MCP tool definitions
+    QdrantHelper.cs            # Qdrant client wrapper
+    EmbeddingProvider.cs       # IEmbeddingProvider interface + factory + retry
+    OnnxEmbeddingProvider.cs   # Local ONNX via Semantic Kernel
+    OpenAiEmbeddingProvider.cs # OpenAI / Azure / Ollama / LM Studio
+    Chunker.cs                 # Heading-boundary + token-budget chunking
+    PageExtractor.cs           # HTML extraction + link discovery
+    ModelDownloader.cs         # ONNX model auto-download from Hugging Face
+    RobotsTxt.cs               # robots.txt parser
+    SitemapParser.cs           # sitemap.xml discovery
+    HttpHelper.cs              # Resilient HTTP with retries
+  tests/
+    ChunkerTests.cs
+    PageExtractorTests.cs
+    EmbeddingProviderTests.cs
+    RobotsTxtTests.cs
+    ConfigTests.cs
   .claude/
-    settings.json              # Project-level MCP server config
-    skills/web-spider/SKILL.md # Claude Code skill for search/retrieval
-    agents/crawl-and-index.md  # Claude Code agent for autonomous crawling
+    settings.json              # Project-level MCP config
+    skills/web-spider/SKILL.md # Claude Code skill
+    agents/crawl-and-index.md  # Claude Code agent
 ```
-
-## Requirements
-
-- .NET 10 SDK (for file-based apps and dnx)
-- Qdrant instance (local Docker or cloud)
-- No API keys needed with default ONNX provider
 
 ## References
 
@@ -303,3 +299,7 @@ qdrant-web-spider/
 - [Qdrant .NET Client](https://github.com/qdrant/qdrant-dotnet)
 - [Model Context Protocol C# SDK](https://github.com/modelcontextprotocol/csharp-sdk)
 - [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+
+## License
+
+MIT

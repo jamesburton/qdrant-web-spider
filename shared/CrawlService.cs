@@ -25,7 +25,7 @@ public class CrawlService(
             var queue = new Queue<(string Url, int Depth)>();
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            if (robots != null && robots.Sitemaps.Any())
+            if (site.MaxDepth > 0 && robots != null && robots.Sitemaps.Any())
             {
                 foreach (var s in robots.Sitemaps)
                 {

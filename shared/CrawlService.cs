@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Qdrant.Client.Grpc;
 
 namespace QdrantWebSpider;
@@ -41,12 +42,14 @@ public class CrawlService(
             {
                 var (url, depth) = queue.Dequeue();
                 if (!visited.Add(url) || (robots != null && !robots.IsAllowed(new Uri(url).AbsolutePath))) continue;
+                if (!IsLanguageAllowed(url, baseUri, config.Crawl.Language)) continue;
 
                 await semaphore.WaitAsync();
                 try
                 {
                     var html = await HttpHelper.GetStringWithRetryAsync(http, url);
                     if (html == null) continue;
+                    if (!IsHtmlLanguageAllowed(html, config.Crawl.Language)) continue;
 
                     var mode = site.Mode ?? config.Crawl.Mode;
                     var page = PageExtractor.Extract(html, url, site.Selectors, mode);
@@ -109,6 +112,39 @@ public class CrawlService(
     {
         if (fromDepth >= maxDepth) return;
         foreach (var l in links) if (!visited.Contains(l)) queue.Enqueue((l, fromDepth + 1));
+    }
+
+    // Matches a 2- or 3-letter language code as the first path segment: /da/, /fr/, /zh-cn/
+    private static readonly Regex LangPathRegex = new(@"^/([a-z]{2,3}(?:-[a-z]{2,4})?)(?:/|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Pre-fetch filter: skip URLs whose first path segment is a language code that doesn't match the configured language.
+    /// Returns true if no language is configured (null), or if the URL has no language prefix, or if it matches.
+    /// </summary>
+    private static bool IsLanguageAllowed(string url, Uri baseUri, string? language)
+    {
+        if (language == null) return true;
+        var path = new Uri(url).AbsolutePath;
+        var basePath = baseUri.AbsolutePath.TrimEnd('/');
+        // Strip the base path so we only inspect the relative portion
+        if (basePath.Length > 0 && path.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
+            path = path[basePath.Length..];
+        var match = LangPathRegex.Match(path);
+        if (!match.Success) return true; // no language prefix — allow
+        return match.Groups[1].Value.Equals(language, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Post-fetch filter: check the HTML lang attribute on the root element.
+    /// Returns true if no language is configured, no lang attribute found, or if it matches.
+    /// </summary>
+    private static bool IsHtmlLanguageAllowed(string html, string? language)
+    {
+        if (language == null) return true;
+        var match = Regex.Match(html, @"<html[^>]*\slang=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+        if (!match.Success) return true; // no lang attribute — allow
+        var htmlLang = match.Groups[1].Value; // e.g. "en", "en-US", "da"
+        return htmlLang.StartsWith(language, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ComputeHash(string t) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(t)));

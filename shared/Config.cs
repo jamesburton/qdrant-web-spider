@@ -146,6 +146,9 @@ public record CrawlConfig
     [JsonPropertyName("mode")]
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ExtractionMode Mode { get; init; } = ExtractionMode.Markdown;
+
+    [JsonPropertyName("language")]
+    public string? Language { get; init; } = "en";
 }
 
 public record SiteConfig
